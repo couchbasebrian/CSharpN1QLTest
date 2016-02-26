@@ -10,6 +10,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using Couchbase;
+using Couchbase.Core;
+
 // Use NuGet Package Manager to install Couchbase SDK
 // PM> install-package CouchbaseNetClient
 
@@ -34,6 +37,16 @@ namespace CSharpN1QLTest
             TimingClass tc = new TimingClass();
             tc.performTest();
             Console.WriteLine("Time taken was " + tc.getElapsedTime() + " ms.");
+
+            CBConnectTimer cct = new CBConnectTimer("127.0.0.1");
+            cct.performTest();
+            Console.WriteLine("Time taken was " + cct.getElapsedTime() + " ms.");
+
+            CBOpenBucketTimer cbt = new CBOpenBucketTimer(cct.getCluster(), "BUCKETNAME");
+            cbt.performTest();
+            Console.WriteLine("Time taken was " + cbt.getElapsedTime() + " ms.");
+
+
         }
     } // class CSharpN1QLTest
 
@@ -49,6 +62,31 @@ namespace CSharpN1QLTest
         }
     }
 
+    class CBOpenBucketTimer : TimingClass
+    {
+
+        Couchbase.Cluster myCluster;
+        Couchbase.Core.IBucket bucket;
+        String bucketName;
+
+        // Given a cluster and a bucket name, open the bucket
+        public CBOpenBucketTimer(Couchbase.Cluster c, String bName)
+        {
+            myCluster = c;
+            bucketName = bName;
+        }
+
+        public Couchbase.Core.IBucket getBucket() { return bucket; }
+
+        public override void doTheWork()
+        {
+            bucket = myCluster.OpenBucket(bucketName);
+        }
+
+    } // Open a bucket
+
+
+
     class CBConnectTimer : TimingClass
     {
         Couchbase.Cluster sourceCluster;
@@ -61,7 +99,7 @@ namespace CSharpN1QLTest
 
         public Couchbase.Cluster getCluster() { return sourceCluster; }
 
-        public void doTheWork()
+        public override void doTheWork()
         {
             sourceCluster = new Couchbase.Cluster(hostName);
         }
@@ -95,7 +133,7 @@ namespace CSharpN1QLTest
         public Exception getException() { return caughtException; }
 
         // override in subclass
-        public void doTheWork()
+        public virtual void doTheWork()
         {
             Console.WriteLine("This is where you do something");
         }
