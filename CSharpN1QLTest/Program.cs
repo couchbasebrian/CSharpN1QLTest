@@ -17,9 +17,11 @@ using Couchbase.Core;
 // PM> install-package CouchbaseNetClient
 
 // Reference material
+// http://docs.couchbase.com/sdk-api/couchbase-net-client-2.2.0/
 // http://developer.couchbase.com/documentation/server/4.1/sdks/dotnet-2.2/n1ql-queries.html
 // http://developer.couchbase.com/documentation/server/4.1/sdks/dotnet-2.2/hello-couchbase.html
 
+// The client currently only supports N1QL when all nodes in the cluster are running it.
 
 namespace CSharpN1QLTest
 {
@@ -34,17 +36,23 @@ namespace CSharpN1QLTest
 
         private void runTests()
         {
+            String bucketName = "beer-sample";
+
             TimingClass tc = new TimingClass();
             tc.performTest();
             Console.WriteLine("Time taken was " + tc.getElapsedTime() + " ms.");
 
-            CBConnectTimer cct = new CBConnectTimer("127.0.0.1");
+            CBConnectTimer cct = new CBConnectTimer("http://127.0.0.1:8091/pools");
             cct.performTest();
             Console.WriteLine("Time taken was " + cct.getElapsedTime() + " ms.");
 
-            CBOpenBucketTimer cbt = new CBOpenBucketTimer(cct.getCluster(), "BUCKETNAME");
+            CBOpenBucketTimer cbt = new CBOpenBucketTimer(cct.getCluster(), bucketName);
             cbt.performTest();
             Console.WriteLine("Time taken was " + cbt.getElapsedTime() + " ms.");
+
+            CBQueryBucketTimer cqbt = new CBQueryBucketTimer(cbt.getBucket(), bucketName);
+            cqbt.performTest();
+            Console.WriteLine("Time taken was " + cqbt.getElapsedTime() + " ms.");
 
 
         }
@@ -59,6 +67,39 @@ namespace CSharpN1QLTest
         public static long currentTimeMillis()
         {
             return (long)((DateTime.UtcNow - Jan1st1970).TotalMilliseconds);
+        }
+    }
+
+
+    class CBQueryBucketTimer : TimingClass
+    {
+        IBucket bucket;
+        String bucketName;
+
+        public CBQueryBucketTimer(IBucket b, String name)
+        {
+            bucket = b;
+            bucketName = name;
+        }
+
+        public override void doTheWork()
+        {
+            String queryAll = "SELECT * FROM `" + bucketName + "`";
+
+            Console.WriteLine("About to query: " + queryAll);
+
+            var result = bucket.Query<dynamic>(queryAll);
+
+            Console.WriteLine("After the query...");
+
+            var errors = result.Errors;
+            var success = result.Success;
+            Console.WriteLine("Errors:  " + errors);
+            Console.WriteLine("Success: " + success);
+            foreach (var row in result.Rows)
+            {
+                Console.WriteLine(row);
+            }
         }
     }
 
@@ -80,6 +121,7 @@ namespace CSharpN1QLTest
 
         public override void doTheWork()
         {
+            Console.WriteLine("About to open the bucket " + bucketName);
             bucket = myCluster.OpenBucket(bucketName);
         }
 
@@ -101,7 +143,17 @@ namespace CSharpN1QLTest
 
         public override void doTheWork()
         {
-            sourceCluster = new Couchbase.Cluster(hostName);
+            Console.WriteLine("About to connect to cluster at " + hostName);
+
+            var config = new Couchbase.Configuration.Client.ClientConfiguration
+            {
+                Servers = new List<Uri>
+                    {
+                        new Uri(hostName)
+                    }
+            };
+
+            sourceCluster = new Couchbase.Cluster(config);
         }
 
     }
@@ -151,6 +203,7 @@ namespace CSharpN1QLTest
             }
             catch (Exception e)
             {
+                Console.WriteLine("An exception occurred!" + e);
                 caughtException = e;
                 exceptionOccurred = true;
             }
